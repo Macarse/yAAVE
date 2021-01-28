@@ -71,5 +71,5 @@ def vault():
 
 
 @pytest.fixture
-def router(gov, Router, protocolProvider, lendingProvider, weth):
-    yield gov.deploy(Router, protocolProvider, lendingProvider, weth)
+def router(gov, Router, protocolProvider, lendingProvider):
+    yield gov.deploy(Router, protocolProvider, lendingProvider)

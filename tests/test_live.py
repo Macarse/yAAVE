@@ -1,10 +1,11 @@
 import pytest
 import brownie
-from brownie import Wei, Contract
+from brownie import Wei, Contract, accounts
 
 
 @pytest.mark.require_network("mainnet-fork")
 def test_lending(
+    chain,
     gov,
     router,
     vault,
@@ -31,8 +32,8 @@ def test_lending(
     variableToken.approveDelegation(router, Wei("1 ether"), {"from": alice})
 
     # Add delegators
-    router.addDelegator({"from": alice})
-    router.addDelegator({"from": bob})
+    router.addDelegator(alice, {"from": gov})
+    router.addDelegator(bob, {"from": gov})
     assert alice in router.delegators()
     assert bob in router.delegators()
 
@@ -41,9 +42,22 @@ def test_lending(
     assert router.ethBorrowingPower() > Wei("2.70 ether")
 
     # Invest the money
-    assert 1 == 2
-    router.invest(Wei("2 ether"))
+    router.invest(Wei("2 ether"), {"from": gov})
 
-    # Mock profit by sending weth
-    weth.transfer(router, Wei("10 ether"), {"from": weth_whale})
-    router.payback(Wei("200 ether"))
+    # Travel to the future! 1W just in case
+    chain.sleep(604_800)
+    chain.mine(1)
+
+    # Harvest the strategy to make sure there are profits
+    vault = Contract("0xdCD90C7f6324cfa40d7169ef80b12031770B4325")
+    vault_gov = accounts.at(vault.governance(), force=True)
+    strategy = Contract(vault.withdrawalQueue(0))
+    print(f"Price per share before harvest: {vault.pricePerShare()}")
+    strategy.harvest({"from": vault_gov})
+    print(f"Price per share after harvest: {vault.pricePerShare()}")
+
+    # Stop the investment
+    router.withdraw({"from": gov})
+
+    # Make sure we made some money after returning the loan
+    assert router.profit() > Wei("0.001 ether")
